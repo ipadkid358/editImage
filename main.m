@@ -56,20 +56,10 @@ int main(int argc, char **argv) {
         printf("Write-permission denied\n");
         return 1;
     }
-    BOOL throwArgs = NO;
     if (!originPath) {
         printf(" [-i] Input file is a required argument\n");
-        throwArgs = YES;
+        return 1;
     }
-    if (sizeW <= 0) {
-        printf(" [-w] Width must be greater than 0\n");
-        throwArgs = YES;
-    }
-    if (sizeH <= 0) {
-        printf(" [-h] Height must be greater than 0\n");
-        throwArgs = YES;
-    }
-    if (throwArgs) return 1;
     
     UIImage *image = [[UIImage alloc] initWithContentsOfFile:originPath];
     if (!image) {
@@ -77,15 +67,16 @@ int main(int argc, char **argv) {
         return 1;
     }
     
+    CGSize origSize = image.size;
+    CGFloat origScale = image.scale;
     CGFloat deviceScale = UIScreen.mainScreen.scale;
-    CGFloat cSizeW = sizeW/deviceScale;
-    CGFloat cSizeH = sizeH/deviceScale;
+    
+    CGFloat origW = origSize.width * origScale;
+    CGFloat origH = origSize.height * origScale;
+    CGFloat cSizeW = sizeW ? sizeW/deviceScale : origW;
+    CGFloat cSizeH = sizeH ? sizeH/deviceScale : origH;
+    
     if (force) {
-        CGSize origSize = image.size;
-        CGFloat origScale = image.scale;
-        
-        CGFloat origW = origSize.width * origScale;
-        CGFloat origH = origSize.height * origScale;
         BOOL badSize = NO;
         if (sizeW > origW) {
             printf("Invalid width of %ld, original is only %ld\n", lroundf(sizeW), lroundf(origW));
@@ -100,6 +91,7 @@ int main(int argc, char **argv) {
             return 1;
         }
     }
+    
     CGRect rect = CGRectMake(0, 0, cSizeW, cSizeH);
     UIGraphicsBeginImageContextWithOptions(CGSizeMake(cSizeW, cSizeH), NO, 0);
     [[UIBezierPath bezierPathWithRoundedRect:rect cornerRadius:radius] addClip];
