@@ -1,15 +1,18 @@
+#import <UIKit/UIKit.h>
+
 int main(int argc, char **argv) {
     NSString *originPath = nil;
     CGFloat sizeW = 0;
     CGFloat sizeH = 0;
     CGFloat radius = 0;
+    CGFloat scale = 1;
     NSString *destPath = nil;
-    BOOL jpg = YES;
+    CGFloat jpg = -1;
     BOOL force = YES;
     NSFileManager *fileManager = NSFileManager.defaultManager;
     
     int c;
-    while ((c = getopt(argc, argv, ":i:o:w:h:r:jf")) != -1)
+    while ((c = getopt(argc, argv, ":i:o:w:h:r:s:j:f")) != -1)
         switch(c) {
             case 'i':
                 originPath = [NSString stringWithFormat:@"%s", optarg];
@@ -20,18 +23,45 @@ int main(int argc, char **argv) {
                 break;
             case 'o':
                 destPath = [NSString stringWithFormat:@"%s", optarg];
+                BOOL isDir;
+                if ([fileManager fileExistsAtPath:destPath isDirectory:&isDir] && isDir) destPath = [destPath stringByAppendingPathComponent:originPath.lastPathComponent];
                 break;
             case 'w':
                 sizeW = [NSString stringWithFormat:@"%s", optarg].floatValue;
+                if (sizeW < 0) {
+                    printf(" [-w] Width needs to be a positive number\n");
+                    return 1;
+                }
                 break;
             case 'h':
                 sizeH = [NSString stringWithFormat:@"%s", optarg].floatValue;
+                if (sizeH < 0) {
+                    printf(" [-h] Height needs to be a positive number\n");
+                    return 1;
+                }
                 break;
             case 'r':
                 radius = [NSString stringWithFormat:@"%s", optarg].floatValue;
+                if (radius < 0) {
+                    printf(" [-r] Radius needs to be a positive number\n");
+                    return 1;
+                }
+                break;
+            case 's':
+                scale = [NSString stringWithFormat:@"%s", optarg].floatValue;
+                if (scale <= 0) {
+                    printf(" [-s] Scale needs to be a positive number\n");
+                    return 1;
+                }
                 break;
             case 'j':
-                jpg = YES;
+                jpg = [NSString stringWithFormat:@"%s", optarg].floatValue;
+                if (jpg < 0 || jpg > 1) {
+                    printf("JPEG compression docs:\n"
+                           "  The quality of the resulting JPEG image, expressed as a value from 0.0 to 1.0.\n"
+                           "  The value 0.0 represents the maximum compression (or lowest quality) while the value 1.0 represents the least compression (or best quality).\n");
+                    return 1;
+                }
                 break;
             case 'f':
                 force = NO;
@@ -40,17 +70,18 @@ int main(int argc, char **argv) {
                 printf("Usage: %s [OPTIONS]\n"
                        " Options:\n"
                        "   -i    Input image path\n"
-                       "   -o    Path to write new image to (overwrite old by default)\n"
+                       "   -o    Path to put new image (overwrite old by default)\n"
                        "   -w    Width of new image (current width by default)\n"
                        "   -h    Height of new image (current height by default)\n"
                        "   -r    Radius to clip edges by (none by default)\n"
-                       "   -j    JPEG compression (PNG by default)\n"
+                       "   -s    Scale by factor of, 0 to 1 (none by default)\n"
+                       "   -j    JPEG compression, 0 to 1 (PNG by default)\n"
                        "   -f    Force upscaling images\n", argv[0]);
-                exit(-1);
+                return 1;
                 break;
         }
     
-    if (radius && jpg) printf("Warning: JPEGs don’t have alpha, applying a radius may cause a white or black background\n");
+    if (radius && jpg > -1) printf("Warning: JPEGs don’t have alpha, applying a radius may cause a white or black background\n");
     BOOL samePath = !destPath;
     if ([fileManager isWritableFileAtPath:destPath]) {
         printf("Write-permission denied\n");
@@ -73,8 +104,8 @@ int main(int argc, char **argv) {
     
     CGFloat origW = origSize.width * origScale;
     CGFloat origH = origSize.height * origScale;
-    CGFloat cSizeW = sizeW ? sizeW/deviceScale : origW;
-    CGFloat cSizeH = sizeH ? sizeH/deviceScale : origH;
+    CGFloat cSizeW = ((sizeW ? sizeW : origW)/deviceScale) * scale;
+    CGFloat cSizeH = ((sizeH ? sizeH : origH)/deviceScale) * scale;
     
     if (force) {
         BOOL badSize = NO;
@@ -100,7 +131,7 @@ int main(int argc, char **argv) {
     UIGraphicsEndImageContext();
     
     NSData *imageData;
-    if (jpg) imageData = UIImageJPEGRepresentation(newImage, 1);
+    if (jpg > -1) imageData = UIImageJPEGRepresentation(newImage, jpg);
     else imageData = UIImagePNGRepresentation(newImage);
     
     if (samePath) {
