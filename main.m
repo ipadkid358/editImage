@@ -1,18 +1,19 @@
 #import <UIKit/UIKit.h>
 
 int main(int argc, char **argv) {
-    NSString *originPath = nil;
+    NSString *originPath;
     CGFloat sizeW = 0;
     CGFloat sizeH = 0;
     CGFloat radius = 0;
     CGFloat scale = 1;
-    NSString *destPath = nil;
+    NSString *maskPath;
+    NSString *destPath;
     CGFloat jpg = -1;
     BOOL force = YES;
     NSFileManager *fileManager = NSFileManager.defaultManager;
     
     int c;
-    while ((c = getopt(argc, argv, ":i:o:w:h:r:s:j:f")) != -1)
+    while ((c = getopt(argc, argv, ":i:o:w:h:r:s:m:j:f")) != -1)
         switch(c) {
             case 'i':
                 originPath = [NSString stringWithFormat:@"%s", optarg];
@@ -54,10 +55,17 @@ int main(int argc, char **argv) {
                     return 1;
                 }
                 break;
+            case 'm':
+                maskPath = [NSString stringWithFormat:@"%s", optarg];
+                if (![fileManager fileExistsAtPath:maskPath]) {
+                    printf(" [-m] No file found at %s\n", maskPath.UTF8String);
+                    return 1;
+                }
+                break;
             case 'j':
                 jpg = [NSString stringWithFormat:@"%s", optarg].floatValue;
                 if (jpg < 0 || jpg > 1) {
-                    printf("JPEG compression docs:\n"
+                    printf(" [-j] JPEG compression docs:\n"
                            "  The quality of the resulting JPEG image, expressed as a value from 0.0 to 1.0.\n"
                            "  The value 0.0 represents the maximum compression (or lowest quality) while the value 1.0 represents the least compression (or best quality).\n");
                     return 1;
@@ -75,6 +83,7 @@ int main(int argc, char **argv) {
                        "   -h    Height of new image (current height by default)\n"
                        "   -r    Radius to clip edges by (none by default)\n"
                        "   -s    Scale by factor of, 0 to 1 (none by default)\n"
+                       "   -m    Mask to add to (none by default)\n"
                        "   -j    JPEG compression, 0 to 1 (PNG by default)\n"
                        "   -f    Force upscaling images\n", argv[0]);
                 return 1;
@@ -94,7 +103,7 @@ int main(int argc, char **argv) {
     
     UIImage *image = [[UIImage alloc] initWithContentsOfFile:originPath];
     if (!image) {
-        printf("Invalid file type\n");
+        printf(" [-i] Invalid file type\n");
         return 1;
     }
     
@@ -110,11 +119,15 @@ int main(int argc, char **argv) {
     if (force) {
         BOOL badSize = NO;
         if (sizeW > origW) {
-            printf("Invalid width of %ld, original is only %ld\n", lroundf(sizeW), lroundf(origW));
+            printf(" [-w] Invalid width of %ld, original is only %ld\n", lroundf(sizeW), lroundf(origW));
             badSize = YES;
         }
         if (sizeH > origH) {
-            printf("Invalid height of %ld, original is only %ld\n", lroundf(sizeH), lroundf(origH));
+            printf(" [-h] Invalid height of %ld, original is only %ld\n", lroundf(sizeH), lroundf(origH));
+            badSize = YES;
+        }
+        if (scale > 1) {
+            printf(" [-s] To shrink images, use a scale 0 to 1\n");
             badSize = YES;
         }
         if (badSize) {
@@ -123,9 +136,20 @@ int main(int argc, char **argv) {
         }
     }
     
+    
     CGRect rect = CGRectMake(0, 0, cSizeW, cSizeH);
     UIGraphicsBeginImageContextWithOptions(CGSizeMake(cSizeW, cSizeH), NO, 0);
     [[UIBezierPath bezierPathWithRoundedRect:rect cornerRadius:radius] addClip];
+    
+    if (maskPath) {
+        UIImage *mask = [[UIImage alloc] initWithContentsOfFile:maskPath];
+        if (!mask) {
+            printf(" [-m] Invalid file type\n");
+            return 1;
+        }
+        else [mask drawInRect:rect];
+    }
+    
     [image drawInRect:rect];
     UIImage *newImage = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
