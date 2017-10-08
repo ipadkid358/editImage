@@ -1,13 +1,13 @@
 #import <UIKit/UIKit.h>
 
-int main(int argc, char **argv) {
-    NSString *originPath;
+int main(int argc, char *argv[]) {
+    NSString *originPath = [[NSString alloc] init];
     CGFloat sizeW = 0;
     CGFloat sizeH = 0;
     CGFloat radius = 0;
     CGFloat scale = 1;
     NSString *maskPath;
-    NSString *destPath;
+    NSString *destPath = originPath;
     CGFloat jpg = -1;
     BOOL force = YES;
     NSFileManager *fileManager = NSFileManager.defaultManager;
@@ -16,54 +16,52 @@ int main(int argc, char **argv) {
     while ((c = getopt(argc, argv, ":i:o:w:h:r:s:m:j:f")) != -1)
         switch(c) {
             case 'i':
-                originPath = [NSString stringWithFormat:@"%s", optarg];
+                originPath = [NSString stringWithUTF8String:optarg];
                 if (![fileManager fileExistsAtPath:originPath]) {
-                    printf(" [-i] No file found at %s\n", originPath.UTF8String);
+                    printf(" [-i] No file found at %s\n", optarg);
                     return 1;
                 }
                 break;
             case 'o':
-                destPath = [NSString stringWithFormat:@"%s", optarg];
-                BOOL isDir;
-                if ([fileManager fileExistsAtPath:destPath isDirectory:&isDir] && isDir) destPath = [destPath stringByAppendingPathComponent:originPath.lastPathComponent];
+                destPath = [NSString stringWithUTF8String:optarg];
                 break;
             case 'w':
-                sizeW = [NSString stringWithFormat:@"%s", optarg].floatValue;
+                sizeW = [[NSString stringWithUTF8String:optarg] floatValue];
                 if (sizeW < 0) {
                     printf(" [-w] Width needs to be a positive number\n");
                     return 1;
                 }
                 break;
             case 'h':
-                sizeH = [NSString stringWithFormat:@"%s", optarg].floatValue;
+                sizeH = [[NSString stringWithUTF8String:optarg] floatValue];
                 if (sizeH < 0) {
                     printf(" [-h] Height needs to be a positive number\n");
                     return 1;
                 }
                 break;
             case 'r':
-                radius = [NSString stringWithFormat:@"%s", optarg].floatValue;
+                radius = [[NSString stringWithUTF8String:optarg] floatValue];
                 if (radius < 0) {
                     printf(" [-r] Radius needs to be a positive number\n");
                     return 1;
                 }
                 break;
             case 's':
-                scale = [NSString stringWithFormat:@"%s", optarg].floatValue;
+                scale = [[NSString stringWithUTF8String:optarg] floatValue];
                 if (scale <= 0) {
                     printf(" [-s] Scale needs to be a positive number\n");
                     return 1;
                 }
                 break;
             case 'm':
-                maskPath = [NSString stringWithFormat:@"%s", optarg];
+                maskPath = [NSString stringWithUTF8String:optarg];
                 if (![fileManager fileExistsAtPath:maskPath]) {
-                    printf(" [-m] No file found at %s\n", maskPath.UTF8String);
+                    printf(" [-m] No file found at %s\n", optarg);
                     return 1;
                 }
                 break;
             case 'j':
-                jpg = [NSString stringWithFormat:@"%s", optarg].floatValue;
+                jpg = [[NSString stringWithUTF8String:optarg] floatValue];
                 if (jpg < 0 || jpg > 1) {
                     printf(" [-j] JPEG compression docs:\n"
                            "  The quality of the resulting JPEG image, expressed as a value from 0.0 to 1.0.\n"
@@ -91,9 +89,11 @@ int main(int argc, char **argv) {
         }
     
     if (radius && jpg > -1) printf("Warning: JPEGs don’t have alpha, applying a radius may cause a white or black background\n");
-    BOOL samePath = !destPath;
+    
+    BOOL isDir;
+    if ([fileManager fileExistsAtPath:destPath isDirectory:&isDir] && isDir) destPath = [destPath stringByAppendingPathComponent:originPath.lastPathComponent];
     if ([fileManager isWritableFileAtPath:destPath]) {
-        printf("Write-permission denied\n");
+        printf("Write-permission to %s denied\n", destPath.UTF8String);
         return 1;
     }
     if (!originPath) {
@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
         return 1;
     }
     
-    UIImage *image = [[UIImage alloc] initWithContentsOfFile:originPath];
+    UIImage *image = [UIImage imageWithContentsOfFile:originPath];
     if (!image) {
         printf(" [-i] Invalid file type\n");
         return 1;
@@ -138,16 +138,16 @@ int main(int argc, char **argv) {
     
     
     CGRect rect = CGRectMake(0, 0, cSizeW, cSizeH);
-    UIGraphicsBeginImageContextWithOptions(CGSizeMake(cSizeW, cSizeH), NO, 0);
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(cSizeW, cSizeH), NO, deviceScale);
     [[UIBezierPath bezierPathWithRoundedRect:rect cornerRadius:radius] addClip];
     
     if (maskPath) {
-        UIImage *mask = [[UIImage alloc] initWithContentsOfFile:maskPath];
+        UIImage *mask = [UIImage imageWithContentsOfFile:maskPath];
         if (!mask) {
             printf(" [-m] Invalid file type\n");
             return 1;
         }
-        else [mask drawInRect:rect];
+        [mask drawInRect:rect];
     }
     
     [image drawInRect:rect];
@@ -158,13 +158,11 @@ int main(int argc, char **argv) {
     if (jpg > -1) imageData = UIImageJPEGRepresentation(newImage, jpg);
     else imageData = UIImagePNGRepresentation(newImage);
     
-    if (samePath) {
-        destPath = originPath;
-        [fileManager removeItemAtPath:destPath error:NULL];
-    }
+    if (destPath == originPath) [fileManager removeItemAtPath:destPath error:NULL];
     if (![imageData writeToFile:destPath atomically:YES]) {
         printf("Failed to write to file\n");
         return 1;
     }
     return 0;
 }
+
